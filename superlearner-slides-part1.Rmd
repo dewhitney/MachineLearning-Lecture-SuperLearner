@@ -13,15 +13,17 @@ output:
       countIncrementalSlides: false
 ---
 
-background-image: url(https://upload.wikimedia.org/wikipedia/commons/b/be/Sharingan_triple.svg)
+background-image: url(https://github.com/dewhitney/MachineLearning-Lecture-SuperLearner/blob/main/supermanlearner.png?raw=true)
+background-size: contain
+background-position: right
+class: left, middle
 
 ```{r setup, include=FALSE}
 options(htmltools.dir.version = FALSE)
 ```
 
-???
-
-Image credit: [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Sharingan_triple.svg)
+# Super Learner
+## David Whitney
 
 ---
 class: center, middle
