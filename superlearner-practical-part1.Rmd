@@ -2,46 +2,28 @@
 title: "Super Learner for Prediction (Part 1)"
 author: "David Whitney (based on materials by Karla Diaz-Ordaz and Jamie Burns)"
 date: "8 Feb 2022"
-output: html_document
+params:
+  solutions: FALSE
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: true
 ---
+
+# Introduction
+***
 
 ```{r setup, include=FALSE}
 
-# timing info for chunks as they render
-# it will be clear why this is a good idea when we start cross-validation
-knitr::knit_hooks$set(time_it = local({
-  now <- NULL
-  function(before, options) {
-    if (before) {
-      # record the current time before each chunk
-      now <<- Sys.time()
-    } else {
-      # calculate the time difference after a chunk
-      res <- difftime(Sys.time(), now)
-      # return a character string to show the time
-      paste("Time for this code chunk to run:", res)
-    }
-  }
-}))
-
-
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, include = TRUE, results = TRUE, cache = TRUE, time_it = TRUE)
+# Practical version with solutions is obtained by setting eval = TRUE
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, include = TRUE, results = TRUE, cache = TRUE, eval = params$solutions) 
 
  library(MASS)
- # library(foreign)
- # library(survey)
- # library(twang)
  library(SuperLearner)
  library(gbm)
  library(tidyverse)
- # library(here)
- # library(haven) #to read in Stata data files
- # library(lattice)
- # library(parallel)
- # library(NHANES)
- # library(psych)
- library(here)
-
 
 ```
 
@@ -59,6 +41,8 @@ df <- NHANESraw
 ```
 
 # Data Processing
+
+***
 
 Inspect the data
 
@@ -145,7 +129,10 @@ y_holdout <- df$BPSysAve[-train_obs]
 
 # Fitting Individual Algorithms
 
+***
+
 ## Linear Regression
+***
 
 We begin by trying different learners individually.  For example: a linear regression, lasso (glmnet), randomForest, XGBoost.  These should ideally be tested with multiple hyperparameter settings for each algorithm.  (You will get to do this later!)
 
@@ -166,6 +153,7 @@ SSE.reg <- sum((y_holdout - Yhat.reg)^2)
 ```
 
 ## Boosting
+***
 
 Now we run a gradient boosting algorithm on the data.  We specify the formula with only the main terms, but recall that trees automatically include interactions up to the specified depth.
 
@@ -229,7 +217,8 @@ SSE.boost <- sum((y_holdout - Yhat.boost)^2)
 
 ```
 
-## LASSO Using Superlearner
+## LASSO via SuperLearner
+***
 
 We will continue to fit single learners, but in order to get familiar it we do so using the `SuperLearner` package
 
@@ -282,7 +271,8 @@ SSE.lasso <- sum((y_holdout- Yhat.lasso)^2)
 
 The SSE corresponding to LASSO is larger than the one obtained from boosting.
 
-## Random Forest Using Superlearner
+## Random Forest via SuperLearner
+***
 
 Fit a random forest model using the wrapper ```SL.ranger```.  All other options as before.  Also calculate the sum of square errors on the test set.
 
@@ -310,6 +300,7 @@ The `SL.ranger` wrapper fits a random forest with 500 trees, minimum node size 5
 With these defaults, the SSE is a bit larger than the one we obtained with boosting. 
 
 # Multiple Learners Stacked in SuperLearner
+***
 
 Instead of fitting the models separately and looking at the performance using sum of square errors as we have been doing, we now fit them simultaneously by including them all in the SuperLearner library.
 
@@ -395,6 +386,7 @@ SSE.sl0 <- sum((y_holdout - Yhat.sl0)^2)
 The SSE is the lower than those SSEs corresponding to  LASSO and RF (which were included in the SL library).
 
 # Extend the Ensemble
+***
 
 We will now add other base learners to the library You can check which ones are implemented by running ```listWrappers()```.  (You can also write your own wrapper functions, we will see later how to do this).
 

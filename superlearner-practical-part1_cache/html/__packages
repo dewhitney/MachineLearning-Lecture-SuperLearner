@@ -14,5 +14,16 @@ purrr
 dplyr
 stringr
 forcats
+ranger
+Matrix
+glmnet
+xgboost
+foreign
+survival
+survey
+twang
 here
+haven
+lattice
 NHANES
+psych
