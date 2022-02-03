@@ -38,3 +38,9 @@ rmarkdown::render("superlearner-practical-part2.Rmd",
                   params = list(solutions = FALSE),
                   output_file="superlearner-practical-part2.pdf")
 
+## render slides to pdf
+
+library(pagedown)
+chrome_print("https://dewhitney.github.io/MachineLearning-Lecture-SuperLearner/superlearner-slides-part1.html")
+
+
