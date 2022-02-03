@@ -7,18 +7,10 @@
     <script src="libs/header-attrs/header-attrs.js"></script>
     <link href="libs/remark-css/default.css" rel="stylesheet" />
     <link href="libs/remark-css/default-fonts.css" rel="stylesheet" />
+    <link href="libs/remark-css/hygge.css" rel="stylesheet" />
   </head>
   <body>
     <textarea id="source">
-class: center, middle, inverse, title-slide
-
-# Super Learner (Part 1)
-## <br/>2490 Machine Learning
-### David Whitney
-### London School of Hygiene and Tropical Medicine
-### 2016/12/12 (updated: 2022-02-02)
-
----
 
 
 background-image: url(https://github.com/dewhitney/MachineLearning-Lecture-SuperLearner/blob/main/supermanlearner.png?raw=true)
@@ -28,179 +20,406 @@ class: left, middle
 
 
 
+.topnote[![:scale 25%](lshtm-logo.png)]
+
 # Super Learner
-## David Whitney
+
+## David Whitney* 
+
+### Machine Learning 2022
+
+.footnote[*based on Prof Karla Diaz-Ordaz's 2021 materials]
 
 ---
-class: center, middle
+class: left
 
-# Super Learner
+# Learning Outcomes
+.content-box-blue[
+After completing today's session, you will
+- understand the basic idea of Super Learner (SL)
+
+- understand the 3 important choices to be made for using SL
+
+- be able to apply SL in a practical example
+
+- know how to use cross-validation to measure the performance of a SL]
+
+---
+class: left
+
+# Motivation
+
+- You have experience with a wide library of prediction models (learners):
+  
+&lt;img src="superlearner-slides-part1_files/figure-html/unnamed-chunk-1-1.jpeg" style="display: block; margin: auto;" /&gt;
+  
+- Your collaborators/colleagues may have many more!
+
+- For a given application, there may be several candidate learners
+
+- How might you choose between the candidates?
+
+---
+class: left
+
+# Super Learner: a bird's eye view
+
+The **Super Learner** is a meta-learning algorithm that
+.content-box-blue[
+- Takes the data and a library `\(\mathcal{L}\)` of `\(L\)` candidate learners as inputs
+
+- Estimates performance of each learner using `\(V\)`-fold cross-validation
+
+- Creates an optimal ensemble `\(m(Z;\boldsymbol{\alpha})\)` of the learners ]
+
+--
+
+- The ensemble `\(m(Z;\boldsymbol{\alpha})\)` offers a reproducible way to choose from (or combine) predictions from the candidate learners
+
+--
+
+- Super Learner ensembles also possess desirable (large sample) guarantees
+  
+---
+class: left
+
+# Super Learner: a bird's eye .blue[**view**]
+
+![:scale 105%](SL-schematic.svg)
+
+---
+class: left
+# What makes a Super Learner?
+
+Before we can follow the steps from above, we must specify
+.content-box-blue[
+1. The library `\(\mathcal{L}\)` of candidate learners
+
+2. A loss function `\(\ell\)` to measure performance
+
+3. Form of the meta-learner `\(m(Z;\alpha)\)`
+  ]
+---
+class: left
+# Library
+
+- Common algorithms to consider
+.content-box-blue[
+.pull-left[
+- Linear regression
+- Polynomial linear regression
+- Random forest
+- Bagging
+]
+.pull-right[
+- GAMs
+- Gradient boosting
+- Neural network
+- Polynomial spline regression
+]]
+
+
+- Select the learner algorithms using contextual knowledge of the problem
+
+- If a custom-made algorithm (eg a clinical prediction model) is known to perform well, include it!
+
+- It is recommended to include a parametric model
+
+---
+class: left
+# Loss function
+
+- The loss function is often the squared error loss `\(\ell = (Y - f(X))^2\)`
+
+&lt;img src="superlearner-slides-part1_files/figure-html/unnamed-chunk-2-1.jpeg" style="display: block; margin: auto;" /&gt;
+
+--
+
+.content-box-blue[
+- For binary outcomes where `\(Y=0,1\)`:
+
+  - Negative binomial log likelihood 
+  
+  - Rank loss function: maximises the area under the ROC curve (a function of both sensitivity and specificity), thus optimizing the algorithms ability to correctly classify observations.]
+
+---
+class: left
+
+# Meta-regression model
+
+- We often use non-negative least squares (NNLS)
+
+$$ E[Y|X=x] = \alpha_1 \hat{f}_1(x) + \ldots + \alpha_L \hat{f}_L(x) $$
+- In NNLS, `\(\alpha_l \geq 0\)` and `\(\sum_{l=1}^L \alpha_l = 1\)`
+
+- Thus `\(m(Z_i; \alpha)\)` is a convex combination of the learners in `\(\mathcal{L}\)` with weights `\(\alpha\)` chosen to minimise the CV risk of SL:
+
+$$ \hat{\alpha} = \arg \min_\alpha \sum_i (Y_i - m(Z_i; \alpha))^2 $$
+
+- We obtain a **discrete super learner** by instead placing all the weight on the learner `\(\hat{f}_l\)` that performs best using `\(V\)`-fold CV
+
+---
+class:center,inverse,middle
+
+# Super Learner in R
+
+---
+class: left
+
+# Super Learner: a bird's eye .blue[**view**]
+
+![:scale 105%](SL-schematic.svg)
+
+---
+class: left
+
+# Super Learner in R
+
+- You will need the .red[`SuperLearner`] package installed for the practical:
+
+
+```r
+SL_installed &lt;- require(SuperLearner)
+
+if(!SL_installed) install.packages("SuperLearner")
+
+library(SuperLearner)
+```
+
+---
+
+class: left
+# The SuperLearner function
+
+- The main function in .red[`SuperLearner`] is itself called .red[`SuperLearner`]:
+
+
+```r
+args(SuperLearner)
+```
+
+```
+## function (Y, X, newX = NULL, family = gaussian(), SL.library, 
+##     method = "method.NNLS", id = NULL, verbose = FALSE, control = list(), 
+##     cvControl = list(), obsWeights = NULL, env = parent.frame()) 
+## NULL
+```
+
+.content-box-blue[
+Key arguments for customising your Super Learner:
+- .red[`SL.library`]: character vector of learners (this is `\(\mathcal{L}\)`)
+
+- .red[`method`]: method to estimate meta-learner (based on `\(\ell\)` and `\(m(Z|\alpha)\)`)
+
+- Enter .red[`?SuperLearner`] in your console for more details
+]
+
+---
+class: left
+# Note: when coding learners for your `\(\mathcal{L}\)`...
+
+- .red[`SuperLearner`] uses a standard interface to automate training/prediction
+
+- This is achieved via wrapper functions that follow this template:
+
+
+```r
+SuperLearner::SL.template
+```
+
+```
+## function (Y, X, newX, family, obsWeights, id, ...) 
+## {
+##     if (family$family == "gaussian") {
+##     }
+##     if (family$family == "binomial") {
+##     }
+##     pred &lt;- numeric()
+##     fit &lt;- vector("list", length = 0)
+##     class(fit) &lt;- c("SL.template")
+##     out &lt;- list(pred = pred, fit = fit)
+##     return(out)
+## }
+## &lt;bytecode: 0x7fcd883cec38&gt;
+## &lt;environment: namespace:SuperLearner&gt;
+```
+
+---
+class: left
+# Built-in wrappers
+
+- You **might** be able to use a built-in wrapper for your learner
+
+
+```r
+listWrappers("SL")
+```
+
+```
+## All prediction algorithm wrappers in SuperLearner:
+```
+
+```
+##  [1] "SL.bartMachine"      "SL.bayesglm"         "SL.biglasso"        
+##  [4] "SL.caret"            "SL.caret.rpart"      "SL.cforest"         
+##  [7] "SL.earth"            "SL.extraTrees"       "SL.gam"             
+## [10] "SL.gbm"              "SL.glm"              "SL.glm.interaction" 
+## [13] "SL.glmnet"           "SL.ipredbagg"        "SL.kernelKnn"       
+## [16] "SL.knn"              "SL.ksvm"             "SL.lda"             
+## [19] "SL.leekasso"         "SL.lm"               "SL.loess"           
+## [22] "SL.logreg"           "SL.mean"             "SL.nnet"            
+## [25] "SL.nnls"             "SL.polymars"         "SL.qda"             
+## [28] "SL.randomForest"     "SL.ranger"           "SL.ridge"           
+## [31] "SL.rpart"            "SL.rpartPrune"       "SL.speedglm"        
+## [34] "SL.speedlm"          "SL.step"             "SL.step.forward"    
+## [37] "SL.step.interaction" "SL.stepAIC"          "SL.svm"             
+## [40] "SL.template"         "SL.xgboost"
+```
+
+---
+class: left
+
+# Example: a univariate Super Learner
+
+.pull-left[
+Generating some data:
+
+
+```r
+set.seed(2490) #reproducible
+n &lt;- 50
+x &lt;- runif(n, min=-4, max=4)
+f &lt;- function(x) 
+     {
+       .4*x-.4*x^2+.05*x^3
+     }
+y &lt;- f(x) + rnorm(n)
+```
+]
+
+.pull-right[
+The data and (unknown) regression:
+
+&lt;img src="superlearner-slides-part1_files/figure-html/unnamed-chunk-8-1.png" width="100%" /&gt;
+]
+
+---
+
+- Let's use GLM and random forest with the NNLS meta-learner
+
+
+```r
+my.lib &lt;- c("SL.randomForest", "SL.glm")
+
+fit &lt;- SuperLearner(Y = y, X = data.frame(x), 
+                    newX = data.frame(x=x0), 
+                    SL.library = my.lib, 
+                    method = "method.NNLS",
+                    cvControl = list(V=5L),
+                    control = list(saveCVFitLibrary=TRUE))
+
+SL.pred &lt;- fit$SL.predict
+```
+
+&lt;img src="superlearner-slides-part1_files/figure-html/unnamed-chunk-10-1.png" style="display: block; margin: auto;" /&gt;
+
+---
+# Step 0. fit each learner in `\(\mathcal{L}\)` on all data
+The `\(L \times n\)` matrix of full-data predictions is stored as .red[`fit$library.predict`]
+
+![](superlearner-slides-part1_files/figure-html/unnamed-chunk-11-1.jpeg)&lt;!-- --&gt;
+
+---
+# Step 1. Split the data into `\(V=5\)` blocks
+The row numbers for the `\(V\)`-fold cross-validation are stored as a list
+
+
+```r
+fit$validRows #think "valid-ation sets 1-5"
+```
+
+```
+## $`1`
+##  [1] 31 35 44 20 22 13 42 25 11 18
+## 
+## $`2`
+##  [1] 39 28 40 15 24  4 45 49 37  6
+## 
+## $`3`
+##  [1] 21 26 47  7 36 43  9 27 14 29
+## 
+## $`4`
+##  [1] 19 30 48  1 50  3 34 12 10 32
+## 
+## $`5`
+##  [1]  8 46 17  2  5 38 33 23 41 16
+```
+
+---
+# Steps 2-3. Train each learner, then predict
+Recall that we do this `\(L \times V\)` times (train on `\(V-1\)` folds, predict on last fold)
+
+&lt;img src="superlearner-slides-part1_files/figure-html/unnamed-chunk-13-1.png" style="display: block; margin: auto;" /&gt;
+
+.footnote[(We plot training sets as solid blue, test sets as empty red)]
+
+---
+# Step 3. Fit the meta-learner
+
+- The `\(n\times L\)` matrix of fitted values on the training data are stored in .red[`fit$Z`]
+  - Remember each data point is belongs to **exactly one** validation set!
+
+
+```r
+head(fit$Z)
+```
+
+```
+##             [,1]       [,2]
+## [1,] -0.31717312 -2.2417058
+## [2,] -0.80226697  0.6553930
+## [3,] -1.24058623  0.4831672
+## [4,] -1.86230006  1.5361682
+## [5,] -0.03448410 -0.1135900
+## [6,] -0.06711427 -0.9365990
+```
+
+- The coefficient vector from NNLS is available as .red[`fit$coef`]
+
+
+```r
+fit$coef
+```
+
+```
+## SL.randomForest_All          SL.glm_All 
+##         0.994654219         0.005345781
+```
+
+- Here, most of the weight is placed on random forest
+
+---
+# Step 4. Predict on new data
+
+- Predictions for .red[`newX`] are at .red[`fit$SL.predict`]
+
+&lt;img src="superlearner-slides-part1_files/figure-html/unnamed-chunk-16-1.png" style="display: block; margin: auto;" /&gt;
 
 ---
 class: inverse, center, middle
 
-# Get Started
+# Your turn to practice!
 
 ---
 
-# Hello World
-
-Install the **xaringan** package from [Github](https://github.com/yihui/xaringan):
-
-
-```r
-remotes::install_github("yihui/xaringan")
-```
-
---
-
-You are recommended to use the [RStudio IDE](https://www.rstudio.com/products/rstudio/), but you do not have to.
-
-- Create a new R Markdown document from the menu `File -&gt; New File -&gt; R Markdown -&gt; From Template -&gt; Ninja Presentation`;&lt;sup&gt;1&lt;/sup&gt;
-
---
-
-- Click the `Knit` button to compile it;
-
---
-
-- or use the [RStudio Addin](https://rstudio.github.io/rstudioaddins/)&lt;sup&gt;2&lt;/sup&gt; "Infinite Moon Reader" to live preview the slides (every time you update and save the Rmd document, the slides will be automatically reloaded in RStudio Viewer.
-
-.footnote[
-[1] 中文用户请看[这份教程](https://slides.yihui.org/xaringan/zh-CN.html)
-
-[2] See [#2](https://github.com/yihui/xaringan/issues/2) if you do not see the template or addin in RStudio.
-]
-
----
-background-image: url(https://github.com/yihui/xaringan/releases/download/v0.0.2/karl-moustache.jpg)
-background-position: 50% 50%
-class: center, bottom, inverse
-
-# You only live once!
-
----
-
-# Hello Ninja
-
-As a presentation ninja, you certainly should not be satisfied by the "Hello World" example. You need to understand more about two things:
-
-1. The [remark.js](https://remarkjs.com) library;
-
-1. The **xaringan** package;
-
-Basically **xaringan** injected the chakra of R Markdown (minus Pandoc) into **remark.js**. The slides are rendered by remark.js in the web browser, and the Markdown source needed by remark.js is generated from R Markdown (**knitr**).
-
----
-
-# remark.js
-
-You can see an introduction of remark.js from [its homepage](https://remarkjs.com). You should read the [remark.js Wiki](https://github.com/gnab/remark/wiki) at least once to know how to
-
-- create a new slide (Markdown syntax&lt;sup&gt;*&lt;/sup&gt; and slide properties);
-
-- format a slide (e.g. text alignment);
-
-- configure the slideshow;
-
-- and use the presentation (keyboard shortcuts).
-
-It is important to be familiar with remark.js before you can understand the options in **xaringan**.
-
-.footnote[[*] It is different with Pandoc's Markdown! It is limited but should be enough for presentation purposes. Come on... You do not need a slide for the Table of Contents! Well, the Markdown support in remark.js [may be improved](https://github.com/gnab/remark/issues/142) in the future.]
-
----
-background-image: url(https://github.com/yihui/xaringan/releases/download/v0.0.2/karl-moustache.jpg)
-background-size: cover
-class: center, bottom, inverse
-
-# I was so happy to have discovered remark.js!
-
----
-class: inverse, middle, center
-
-# Using xaringan
-
----
-
-# xaringan
-
-Provides an R Markdown output format `xaringan::moon_reader` as a wrapper for remark.js, and you can use it in the YAML metadata, e.g.
-
-```yaml
----
-title: "A Cool Presentation"
-output:
-  xaringan::moon_reader:
-    yolo: true
-    nature:
-      autoplay: 30000
----
-```
-
-See the help page `?xaringan::moon_reader` for all possible options that you can use.
-
----
-
-# remark.js vs xaringan
-
-Some differences between using remark.js (left) and using **xaringan** (right):
-
-.pull-left[
-1. Start with a boilerplate HTML file;
-
-1. Plain Markdown;
-
-1. Write JavaScript to autoplay slides;
-
-1. Manually configure MathJax;
-
-1. Highlight code with `*`;
-
-1. Edit Markdown source and refresh browser to see updated slides;
-]
-
-.pull-right[
-1. Start with an R Markdown document;
-
-1. R Markdown (can embed R/other code chunks);
-
-1. Provide an option `autoplay`;
-
-1. MathJax just works;&lt;sup&gt;*&lt;/sup&gt;
-
-1. Highlight code with `{{}}`;
-
-1. The RStudio addin "Infinite Moon Reader" automatically refreshes slides on changes;
-]
-
-.footnote[[*] Not really. See next page.]
-
----
-
-# Math Expressions
-
-You can write LaTeX math expressions inside a pair of dollar signs, e.g. &amp;#36;\alpha+\beta$ renders `\(\alpha+\beta\)`. You can use the display style with double dollar signs:
-
-```
-$$\bar{X}=\frac{1}{n}\sum_{i=1}^nX_i$$
-```
-
-`$$\bar{X}=\frac{1}{n}\sum_{i=1}^nX_i$$`
-
-Limitations:
-
-1. The source code of a LaTeX math expression must be in one line, unless it is inside a pair of double dollar signs, in which case the starting `$$` must appear in the very beginning of a line, followed immediately by a non-space character, and the ending `$$` must be at the end of a line, led by a non-space character;
-
-1. There should not be spaces after the opening `$` or before the closing `$`.
-
-1. Math does not work on the title slide (see [#61](https://github.com/yihui/xaringan/issues/61) for a workaround).
 
 
     </textarea>
 <style data-target="print-only">@media screen {.remark-slide-container{display:block;}.remark-slide-scaler{box-shadow:none;}}</style>
 <script src="https://remarkjs.com/downloads/remark-latest.min.js"></script>
+<script src="macros.js"></script>
 <script>var slideshow = remark.create({
+"ratio": "4:3",
 "highlightStyle": "github",
 "highlightLines": true,
 "countIncrementalSlides": false
