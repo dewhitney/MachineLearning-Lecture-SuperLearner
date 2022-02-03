@@ -7,38 +7,54 @@ output: html_document
 
 ```{r setup, include=FALSE}
 
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, include = TRUE, results = TRUE)
+# timing info for chunks as they render
+# it will be clear why this is a good idea when we start cross-validation
+knitr::knit_hooks$set(time_it = local({
+  now <- NULL
+  function(before, options) {
+    if (before) {
+      # record the current time before each chunk
+      now <<- Sys.time()
+    } else {
+      # calculate the time difference after a chunk
+      res <- difftime(Sys.time(), now)
+      # return a character string to show the time
+      paste("Time for this code chunk to run:", res)
+    }
+  }
+}))
+
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, include = TRUE, results = TRUE, cache = TRUE, time_it = TRUE)
 
  library(MASS)
- library(foreign)
- library(survey)
- library(twang)
+ # library(foreign)
+ # library(survey)
+ # library(twang)
  library(SuperLearner)
  library(gbm)
  library(tidyverse)
- library(here)
- library(haven) #to read in Stata data files
- library(lattice)
- library(parallel)
- library(NHANES)
- library(psych)
+ # library(here)
+ # library(haven) #to read in Stata data files
+ # library(lattice)
+ # library(parallel)
+ # library(NHANES)
+ # library(psych)
  library(here)
 
 
 ```
 
-This practical will illustrate the use of non-homogeneous ensemble methods (i.e. ensemble methods that use different algorithms).  Specifically, the SuperLearner developed by Mark Van der Laan (2007).
-
-First change your working directory if needed (```setwd("")```) 
-
-We will again use part of the National Health and Nutrition Examination Survey (NHANES) dataset.  We want to write the raw dataset to a data frame in our environment, and can do this with the following code: 
+In this practical, you will apply the SuperLearner. We will use part of the National Health and Nutrition Examination Survey (NHANES) dataset.  We want to write the raw dataset to a data frame in our environment, and can do this with the following code: 
 
 ```{r, include = TRUE, echo = TRUE}
 
-install.packages("NHANES", repos = "http://cran.us.r-project.org")
-require(NHANES)
+nhanes_installed <- require(NHANES)
+if(!nhanes_installed) install.packages("NHANES", repos = "http://cran.us.r-project.org")
+library(NHANES)
+
 data("NHANES")
-df <- force(NHANESraw)
+df <- NHANESraw
 
 ```
 
@@ -60,10 +76,10 @@ Combine these into a single factor variable that indicates whether the individua
 
 ```{r}
 
-df <- df %>% mutate(Smoke= ifelse(SmokeNow=="Yes", "Current", 
-                                  ifelse(Smoke100=="Yes", "Ex", "Never")))%>% 
-  mutate(Smoke=ifelse(is.na(Smoke), "Never",Smoke)) %>% 
-  mutate(Smoke= factor(Smoke))
+df <- df %>% mutate(Smoke = ifelse(SmokeNow == "Yes", "Current", 
+                                  ifelse(Smoke100 == "Yes", "Ex", "Never"))) %>% 
+  mutate(Smoke = ifelse(is.na(Smoke), "Never", Smoke)) %>% 
+  mutate(Smoke = factor(Smoke))
 
 ```
 
@@ -84,16 +100,16 @@ Inspect our outcome variables, and do the same for key covariates ```BMI``` and 
 ```{r}
 
 table(df$Diabetes,useNA = 'always')
-describe(df$BPSysAve)
+summary(df$BPSysAve)
 
 
 table(df$Smoke, useNA = 'always')
-describe(df$BMI)
-describe(df$Age)
+summary(df$BMI)
+summary(df$Age)
 
 ```
 
-We want to keep only the complete cases in the dataset, do this using a single line of code.
+For this illustration, we want to keep only the complete cases in the dataset. We do this using a single line of code.
 
 ```{r}
 
@@ -106,13 +122,13 @@ Now split the data into training and test sets.  The split should be 50/50.  Cal
 ```{r}
 
 set.seed(101)
-train_obs = sample(nrow(df), size = nrow(df)*0.5)
+train_obs <- sample(nrow(df), size = nrow(df)*0.5)
 
-df_train = df[train_obs, ]
+df_train <- df[train_obs, ]
 
 # Create a holdout set for evaluating model performance.
 # Note: cross-validation is even better than a single holdout sample.
-df_holdout = df[-train_obs, ]
+df_holdout <- df[-train_obs, ]
 
 ```
 
@@ -122,8 +138,8 @@ We want the outcome (```BPSysAve```) in vector form (also split into train and h
 
 # The continuous outcome will be the average of the 3 systolic blood pressure measurrement
 # BPSysAve
-y_train = df$BPSysAve[train_obs]
-y_holdout = df$BPSysAve[-train_obs]
+y_train <- df$BPSysAve[train_obs]
+y_holdout <- df$BPSysAve[-train_obs]
 
 ```
 
@@ -131,7 +147,7 @@ y_holdout = df$BPSysAve[-train_obs]
 
 ## Linear Regression
 
-We begin by trying different learners individually.  For example: a linear regression, lasso (glmnet), randomForest, XGBoost.  These should ideally be tested with multiple hyperparameter settings for each algorithm.  (We will do this later).
+We begin by trying different learners individually.  For example: a linear regression, lasso (glmnet), randomForest, XGBoost.  These should ideally be tested with multiple hyperparameter settings for each algorithm.  (You will get to do this later!)
 
 Carry out a simple linear regression for the systolic blood pressure measurement, using ```BMI```, ```Age```, ```SleepHrsNight```, ```PhysActive```, ```Smoke```, ```Gender```, ```Race1```, ```Poverty```, ```Diabetes``` and ```TotChol``` as covariates.
 
@@ -139,7 +155,7 @@ Using the generic ```predict()``` function to make predictions, manually calcula
 
 ```{r}
 
-form <-"BPSysAve ~ BMI + Age + SleepHrsNight + PhysActive +
+form <- "BPSysAve ~ BMI + Age + SleepHrsNight + PhysActive +
                      Smoke + Gender + Race1 + Poverty + Diabetes +TotChol"
 mod.reg <- glm(form, data=df_train, family=gaussian)
 Yhat.reg <- predict(mod.reg, newdata=df_holdout, type='response')
@@ -209,30 +225,30 @@ Also generate the sum of square errors that results from applying this model to 
 Yhat.boost <- predict(boost, newdata = df_holdout, n.trees = best.iter, type = "link")
 
 #' Sum of Squared Errors SSE 
-SSE.boost<-sum((y_holdout - Yhat.boost)^2)
+SSE.boost <- sum((y_holdout - Yhat.boost)^2)
 
 ```
 
 ## LASSO Using Superlearner
 
-We will continue to fit single learners, but in order to get familiar it we do so using the superlearner package
+We will continue to fit single learners, but in order to get familiar it we do so using the `SuperLearner` package
 
-First, check which learners have been integrated into the SuperLearner package.  We can use any of these when we run the SuperLearner:
+First, check which learners have been integrated into the `SuperLearner` package.  We can use any of these when we run the SuperLearner:
 
 ```{r, include = TRUE, echo = TRUE}
 listWrappers(what = "SL")
 
 ```
 
-Superlearner (SL) likes the outcome and matrix of covariates to be kept separate.  Do this now.
+`SuperLearner` (SL) likes the outcome and matrix of covariates to be kept separate. Do this now.
 
 ```{r, include = TRUE, ECHO = TRUE}
 
-X <- df %>%dplyr::select(-one_of("BPSysAve") )
+X <- df %>% dplyr::select(-one_of("BPSysAve") )
 
 # Also divide our design matrix into training and testing sets
-x_train<-X[train_obs, ]
-x_holdout = X[-train_obs, ]
+x_train <- X[train_obs, ]
+x_holdout <- X[-train_obs, ]
 
 ```
 
@@ -241,10 +257,11 @@ Now let's fit penalised regression LASSO, but using SL.  For now using all the d
 ```{r include = TRUE, echo = TRUE}
 
 # Fit lasso model
-sl_lasso = SuperLearner(Y = y_train,
+sl_lasso <- SuperLearner(Y = y_train,
                         X = x_train,
                         family = gaussian(),
-                        SL.library = "SL.glmnet")
+                        SL.library = "SL.glmnet",
+                        cvControl = list(V=5L))
 
 # Review the elements in the SuperLearner object.
 names(sl_lasso)
@@ -271,22 +288,24 @@ Fit a random forest model using the wrapper ```SL.ranger```.  All other options 
 
 ```{r}
 
-#' Fit random forest using the wrapper function SL.ranger, with all the defaults
-#' You can find these by typing ?SL.ranger
+# Fit random forest using the wrapper function SL.ranger, with all the defaults
+# You can find these by typing ?SL.ranger
 
-sl_rf = SuperLearner( Y = y_train,
+sl_rf <- SuperLearner(Y = y_train,
                       X = x_train,
                       family = gaussian(),
-                      SL.library = "SL.ranger" )
+                      SL.library = "SL.ranger",
+                      cvControl = list(V=5L))
 
 # predict Y in the holdout
-Yhat.rf <-  predict(sl_rf, x_holdout, onlySL = TRUE)$pred
+Yhat.rf <- predict(sl_rf, x_holdout, onlySL = TRUE)$pred
 
 # root least squares error
-SSE.ranger<-sum((y_holdout - Yhat.rf)^2)
+SSE.ranger <- sum((y_holdout - Yhat.rf)^2)
 
 ```
-The SL.ranger fits a random forests with 500 trees, minimum node size 5, and the number of variables used to split the squared root of the number of available predictors. 
+
+The `SL.ranger` wrapper fits a random forest with 500 trees, minimum node size 5, and the number of variables used to split the squared root of the number of available predictors. 
 
 With these defaults, the SSE is a bit larger than the one we obtained with boosting. 
 
@@ -317,15 +336,15 @@ sl0 <- SuperLearner(Y = y_train,  # Y is the outcome variable
                     # combination is chose)
                     # for now we will use the \sum_{k=1}^K \alpha_k f_{k,n} method by deafault
                     SL.library = my.library,
-                    cvControl = list(shuffle = F, V = 10)
+                    cvControl = list(shuffle = F, V = 5)
                     # cvControl specifies parameters related to cross validation,
                     # used to estimate the risk on future data
                     # the default is for V = 10-fold 
-                          )
+)
 
 ```
 
-Now check the output by simply calling the SuperLearner object.
+Now check the output by simply calling the `SuperLearner` object.
 
 ```{r}
 
@@ -333,11 +352,11 @@ sl0
 
 ```
 
-The output has two components:
+The output has two main components:
 
-Firstly, the risk is a measure of model accuracy or performance, and we want our models to minimize the estimated risk (according to the specified loss function).  Because we did not change it by an option, our SL has used the default mean square error, but this can be altered (see the help files for SuperLearner).  In this case, the risks for each algorithm in the library are all broadly similar, with the random forest slightly outperforming the other two algorithms in the library.
+Firstly, the risk is a measure of model accuracy or performance, and we want our models to minimize the estimated risk (according to the specified loss function).  Because we did not change it by an option, our SL has used the default mean square error, but this can be altered (see the help files for `SuperLearner`).  In this case, the risks for each algorithm in the library are all broadly similar, with the random forest slightly outperforming the other two algorithms in the library.
 
-The 'coef' column tells us the importance of each algorithm in the final ensemble.  By default (because we use NNLS) the weights are always greater than or equal to 0 and sum to 1 (a 'convex combination').  If a coefficient is 0, it means that the algorithm is not being used in the SuperLearner ensemble.  Here we see that glm has been given no weight in the final (ensemble) predictor and so is not used.
+The `coef` column tells us the importance of each algorithm in the final ensemble.  By default (because we use NNLS) the weights are always greater than or equal to 0 and sum to 1 (a 'convex combination').  If a coefficient is 0, it means that the algorithm is not being used in the SuperLearner ensemble.  Here we see that `glm` has been given no weight in the final (ensemble) predictor and so is not used.
 
 Now see which has the lowest risk, and how long it took to run, using the following code:
 
@@ -351,7 +370,7 @@ sl0$times$everything
 
 ```
 
-Now that we have a SL ensemble predictor, make predicts on the holdout data set and review the results.  This can be done using the generic ```predict()``` function, but we stipulate the option ```onlySL = TRUE``` so we do not fit algorithms in the library that had zero weight, saving computation.
+Now that we have a SL ensemble predictor, make predictions on the holdout data set and review the results.  This can be done using the generic ```predict()``` function, but we stipulate the option ```onlySL = TRUE``` so we do not fit algorithms in the library that had zero weight, saving computation.
 
 ```{r}
 
@@ -367,10 +386,10 @@ We want the first object in the list to serve as our predictions.  Use this to c
 ```{r}
 
 # Pick out SL predictions
-Yhat.sl0 <-pred.sl0[[1]]
+Yhat.sl0 <- pred.sl0[[1]]
 
 # Calculate the sum of square errors
-SSE.sl0<-sum((y_holdout - Yhat.sl0)^2)
+SSE.sl0 <- sum((y_holdout - Yhat.sl0)^2)
 
 ```
 The SSE is the lower than those SSEs corresponding to  LASSO and RF (which were included in the SL library).
@@ -379,14 +398,14 @@ The SSE is the lower than those SSEs corresponding to  LASSO and RF (which were 
 
 We will now add other base learners to the library You can check which ones are implemented by running ```listWrappers()```.  (You can also write your own wrapper functions, we will see later how to do this).
 
-For now, add ```gbm()``` and ```glm.interaction```.  [Note: xgboost has deprecated a function used in the SL wrapper so warnings  "reg:linear is now deprecated in favor of reg:squarederror" will be displayed, so I won't use for this exercise, though ordinarily I do!]
+For now, add ```gbm()``` and ```glm.interaction```.  [Note: xgboost has deprecated a function used in the SL wrapper so warnings "reg:linear is now deprecated in favor of reg:squarederror" will be displayed, so I won't use for this exercise, though ordinarily I do!]
 
-Run another SL predictor using the same three algorithms as before alongside the two new ones.  Review the output and the time it took to run as before.
+Run another SL predictor using the same three algorithms as before alongside the two new ones. Review the output and the time it took to run as before.
 
 ```{r}
 
 # Define a new, larger library
-my.library.2 <-c("SL.glm","SL.glm.interaction","SL.glmnet", "SL.ranger","SL.gbm")
+my.library.2 <- c("SL.glm","SL.glm.interaction","SL.glmnet", "SL.ranger","SL.gbm")
 
 # Set seed
 set.seed(101)
@@ -396,7 +415,7 @@ sl1 <- SuperLearner( Y = y_train,
                      X = x_train,
                      family = gaussian(),
                      SL.library = my.library.2,
-                     cvControl = list(shuffle = F, V = 10) )
+                     cvControl = list(shuffle = F, V = 5) )
 
 # Review the SL object
 sl1
@@ -406,7 +425,7 @@ sl1$times$everything
 
 ```
   
-You should see that the gradient boosted predictor (```gbm()```) has the most weight.  The new glm with interactions is the second most important, and the others are either zero or make only small contributions to the ensemble.
+You should see that the gradient boosted predictor (```gbm()```) has the most weight.  The new `glm` with interactions is the second most important, and the others are either zero or make only small contributions to the ensemble.
 
 As before, use the SL predictor to make predictions on the holdout set.  
 
@@ -415,10 +434,9 @@ As before, use the SL predictor to make predictions on the holdout set.
 Yhat.sl1 <- predict(sl1, x_holdout, onlySL = TRUE)[[1]]
   
 # SSE
-SSE.sl1 <- sum((y_holdout- Yhat.sl1)^2)
-  
+SSE.sl1 <- sum((y_holdout - Yhat.sl1)^2)
 
 ```
-We see that adding more learners slightly improves the SSE 
-Adding more (without removing) will result in further improvements.
+
+We see that adding more learners slightly improves the SSE. Adding more (without removing) will result in further improvements.
 
