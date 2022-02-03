@@ -439,6 +439,7 @@ class: inverse, center, middle
 # Your turn to practice!
 
 ---
+class: inverse, center, middle
 
-
+# ... Super Learner will return in part 2
 
