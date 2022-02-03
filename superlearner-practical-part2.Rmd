@@ -3,7 +3,7 @@ title: "Super Learner for Prediction (Part 2)"
 author: "David Whitney (based on materials by Karla Diaz-Ordaz and Jamie Burns)"
 date: "8 Feb 2022"
 params:
-  solutions: FALSE
+  solutions: TRUE
 output:
   html_document:
     toc: true
@@ -136,7 +136,7 @@ First, we create a list of tuning parameters, over which we want to create a set
 
 ```{r}
 tune.ranger = list(num.trees = c(200,1000),
-                   mtry = c(3,6)) #number of variables to split at in each node 
+                   mtry = c(3,6)) #number of variables to split at in each node
 
 ```
 
@@ -181,17 +181,22 @@ For the sake of finishing in good time, we selected only 4 configurations, thoug
 Begin by adding to the previous library the xgboost learners with diff tuning parameters. Then we fit the `CV.SuperLearner` with this enlarged library. 
 
 We use `V = 3` to save computation time; for a real analysis use `V = 10` at least.
+
 Note: when using `xgboost` you may get lots of warnings, ignore these.
 
 The code using `xgb` should take around 30 min. If you want to test the library with gbm learners, or indeed to add more hyperparameters, I suggest you do this after learning how to run `CV.SuperLearner` in parallel (see the extra material provided).
 
 
-```{r eval = FALSE}
-my.library.3 <- c(xgb.learners$names,ranger.learners$names,my.library.2)
+```{r eval = TRUE}
+my.library.3 <- c(ranger.learners$names,my.library.2)
+# my.library.3 <- c(xgb.learners$names,ranger.learners$names,my.library.2)
+
 set.seed(101)
 system.time({
-  cv_sl1 <- CV.SuperLearner(Y = y_train, X = x_train, family = gaussian(), V = 3,
-                        SL.library = my.library.3)
+  cv_sl1 <- CV.SuperLearner(Y = y_train, X = x_train, 
+                            family = gaussian(), 
+                            V = 3,
+                            SL.library = my.library.3)
 })
 ```
 
@@ -244,7 +249,7 @@ As you can see, there are many learners in our library that the ensemble never u
 
 If you have time, you can try running a SL with Diabetes as outcome. Since it's binary, you need to change the argument family to "binomial". You will also need to redefine the design matrix, so it excludes diabetes from the set of predictors. We create training and holdout datasets
 
-```{r}
+```{r eval = FALSE}
 y.bin <- as.numeric(df$Diabetes)-1
 y.bin_train <- y.bin[train_obs]
 y.bin_holdout <- y.bin[-train_obs]
@@ -261,7 +266,7 @@ This appears to be the case here (type `table(df$Diabetes)` to see this), we wil
 
 We begin by setting the seed and specifying learners for binary data.
 Then run the binary SL. 
-```{r}
+```{r eval = FALSE}
 set.seed(1)
 my.library.bin <- c("SL.glm", "SL.glm.interaction", "SL.ranger","SL.gbm")
 
@@ -273,35 +278,35 @@ sl.bin <- SuperLearner(Y = y.bin_train, X = x_train, family =  binomial(),
 ```
 
 You can check the time it took by typing
-```{r}
+```{r eval = FALSE}
 sl.bin$times$everything
 ```
 
 Check the SL object
-```{r}
+```{r eval = FALSE}
 sl.bin
 ```
 
-All the learners have non-zero weights
+All the learners should have non-zero weights.
 
-We can now use the Super Learner to predict on new data
+We can now use the Super Learner to predict on new data.
 
-```{r}
+```{r eval = FALSE}
 Yhat.sl.bin <- predict(sl.bin, x_holdout, onlySL = TRUE)[[1]]
 ```
 
 We can also use the method argument to change the loss function and the way we select convex combinations.
 
-Run the following, to obtain a super learner that uses Non-negative Log-likelihood. Check the SL object, and use the resulting SL to predict on new data 
+Run the following to obtain a super learner that uses Non-negative Log-likelihood. Check the SL object, and use the resulting SL to predict on new data 
 
-```{r}
+```{r eval = FALSE}
 sl.bin.2 <- SuperLearner(Y = y.bin_train, X = x_train, family =  binomial(),
                          SL.library = my.library.bin,
                          method = "method.NNloglik",
                          cvControl = list(shuffle = F, V=10))
 
 sl.bin.2
-#' all the learners have non-zero weights
+# all the learners have non-zero weights
 
 Yhat.sl.bin.2 <- predict(sl.bin.2, x_holdout, onlySL = TRUE)[[1]]
 
