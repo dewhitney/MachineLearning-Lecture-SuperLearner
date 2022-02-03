@@ -3,7 +3,7 @@
 
 Presented to LSHTM MSc in Health Data Science students on 8 Feb 2022
 
-Prepared in 2022 by Dr David Whitney based on Karla DiazOrdaz's 2021 materials
+Prepared in 2022 by David Whitney based on Karla DiazOrdaz's 2021 materials
 
 ## Lecture slides
 
