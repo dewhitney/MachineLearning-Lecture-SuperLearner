@@ -40,7 +40,6 @@ rmarkdown::render("superlearner-practical-part2.Rmd",
 
 ## render slides to pdf
 
-library(pagedown)
-chrome_print("https://dewhitney.github.io/MachineLearning-Lecture-SuperLearner/superlearner-slides-part1.html")
-
+xaringan::decktape("superlearner-slides-part2.html",
+                   output = "superlearner-slides-part2.pdf")
 
