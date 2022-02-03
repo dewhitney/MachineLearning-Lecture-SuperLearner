@@ -1,5 +1,5 @@
 ---
-title: "Super Learner (Part 1)"
+title: "Super Learner (Part 2)"
 subtitle: "<br/>2490 Machine Learning"
 author: "David Whitney"
 institute: "London School of Hygiene and Tropical Medicine"
