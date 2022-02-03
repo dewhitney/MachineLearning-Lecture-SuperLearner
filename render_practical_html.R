@@ -10,8 +10,8 @@ rmarkdown::render("superlearner-practical-part1.Rmd",
 
 rmarkdown::render("superlearner-practical-part2.Rmd",
                   params = list(solutions = TRUE),
-                  output_file="superlearner-solutions-part1.html")
+                  output_file="superlearner-solutions-part2.html")
 
 rmarkdown::render("superlearner-practical-part2.Rmd",
                   params = list(solutions = FALSE),
-                  output_file="superlearner-practical-part1.html")
+                  output_file="superlearner-practical-part2.html")
