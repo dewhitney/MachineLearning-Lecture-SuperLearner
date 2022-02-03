@@ -1,0 +1,304 @@
+---
+title: "Super Learner for Prediction (Part 2)"
+author: "David Whitney (based on materials by Karla Diaz-Ordaz and Jamie Burns)"
+date: "8 Feb 2022"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, include = TRUE, results = TRUE)
+
+ library(MASS)
+ library(foreign)
+ library(survey)
+ library(twang)
+ library(SuperLearner)
+ library(gbm)
+ library(tidyverse)
+ library(here)
+ library(haven) #to read in Stata data files
+ library(lattice)
+ library(parallel)
+ library(NHANES)
+ library(psych)
+ library(here)
+
+
+```
+
+```{r, include = TRUE, echo = TRUE}
+require(NHANES)
+data("NHANES")
+df <- force(NHANESraw)
+df <- df %>% mutate(Smoke= ifelse(SmokeNow=="Yes", "Current", 
+                                  ifelse(Smoke100=="Yes", "Ex", "Never")))%>% 
+  mutate(Smoke=ifelse(is.na(Smoke), "Never",Smoke)) %>% 
+  mutate(Smoke= factor(Smoke))
+
+df <- df %>% dplyr::select(one_of(
+  "BPSysAve","BMI", "Age", "SleepHrsNight", "PhysActive","Smoke",
+  "Gender", "Race1", "Poverty", "Diabetes", "TotChol"))
+df <- df[complete.cases(df),]
+set.seed(101)
+train_obs = sample(nrow(df), size = nrow(df)*0.5)
+df_train = df[train_obs, ]
+df_holdout = df[-train_obs, ]
+y_train = df$BPSysAve[train_obs]
+y_holdout = df$BPSysAve[-train_obs]
+X <- df %>%dplyr::select(-one_of("BPSysAve") )
+
+# Also divide our design matrix into training and testing sets
+x_train<-X[train_obs, ]
+x_holdout = X[-train_obs, ]
+
+```
+
+
+## Fit ensemble with external cross-validation #####
+
+We want an estimate of the performance of the ensemble itself to check the ensemble weights are successful in improving over the best single algorithm.
+
+For this,  we use an “external” layer of cross-validation, also called nested cross-validation.  We generate a separate holdout sample that we don’t use to fit the SuperLearner,  which allows it to be a good estimate of the SuperLearner’s performance on unseen data. 
+
+Typically we would run 10-fold external cross-validation, but even 5-fold is reasonable.
+  
+This also allows us to calculate standard errors on the performance of the individual algorithms and can compare them to the SuperLearner.
+
+We will also time the running time. 
+
+```{r}
+set.seed(101)
+my.library.2 <-c("SL.glm","SL.glm.interaction","SL.glmnet", "SL.ranger","SL.gbm")
+ #  timings are not pre-programmed  for the CV.SuperLearner 
+# So we need to time it manually.
+
+system.time({
+  cv_sl = CV.SuperLearner(Y = y_train, X = x_train, family = gaussian(),
+                          # For a real analysis we would use V = 10.
+                          V = 5,
+                          SL.library = my.library.2)
+})
+```
+
+
+
+We run summary on the cv_sl object rather than simply printing the object.
+
+
+```{r}
+summary(cv_sl)
+```
+
+The Risk is based on: Mean Squared Error.
+
+
+We review the distribution of the best single learner (Discrete SL) as external CV folds. Plot the performance with 95% CIs.
+
+```{r}
+table(simplify2array(cv_sl$whichDiscreteSL))
+plot(cv_sl) + theme_bw()
+# Save plot to a file.
+ggsave("CV_SuperLearner.png")
+```
+
+
+We see two SuperLearner results: “Super Learner” and “Discrete SL”.
+“Discrete SL” chooses the best single learner.  “Super Learner” takes a weighted average of the learners. 
+Based on the outer cross-validation, we see that the SuperLearner is statistically tying with the best algorithm (in this case gbm). We know that asymptotically, the SL will always perform as good as the best algorithm included in the library due to the oracle property, but it is good to see it empirically in a finite sample.
+
+
+#  Using the SL to select the best  hyperparameters 
+
+
+ So far, we have been using the default hyperparameters that are pre-programmed in the SL
+Customizing a hyperparameter is equivalent to defining a new learner, which uses the same algorithm, but with different tuning parameters.  
+There are two ways of make a new learner in the SuperLearner syntax, writing a function or use ```create.Learner()```.
+
+We begin by making a random forest "wrapper" function that fits more trees, i.e. the tuning parameter controlling the number of trees is different than that from the standard implementation. 
+Increasing the number of trees may reduce error and can’t hurt over fitting. 
+
+Let us recall the default arguments for  the wrapper function for random forests using the ranger package. We type
+```{r}
+SL.ranger
+```
+
+
+Now,  we customize the hyper parameters using ```create.Learner```.
+First, we create a list of tuning parameters, over which we want to create a set of new RF learners.
+```{r}
+tune.ranger = list(num.trees = c(200,1000),
+                   mtry = c(3,6)) #number of variables to split at in each node 
+
+```
+
+We now create new ranger learners, with each of these combinations. We also shorten the name prefix (so that the plots later on are more readable).
+
+
+```{r}
+ranger.learners = create.Learner("SL.ranger",
+                                 tune = tune.ranger, 
+                                 detailed_names = T, 
+                                 name_prefix = "Rg")
+```
+
+Let's check how many learners we added (number of possible configurations)
+
+
+```{r}
+length(ranger.learners$names)
+```
+
+We now repeat the process for boosting. We use two different packages, ```gbm```
+and ``xgboost``` (which runs much faster). 
+Recall that you can use type ```SL>xgboots``` to inspect the defaults.
+For xgboost the SL implementation has ```ntrees = 1000```, 
+    interaction depth ```max_depth = 4```, and learning rate ```shrinkage = 0.1```.
+
+We let the hyper-parameters take 2 values
+```{r}
+#### tuning for gbm ####
+tune = list(ntrees = c(100,500),
+            interaction.depth = c(2,4),
+            shrinkage = c(0.05))
+
+
+gb.learners = create.Learner("SL.gbm",tune = tune, detailed_names = T, name_prefix = "gb")
+
+xgb.learners = create.Learner("SL.xgboost",tune = tune, detailed_names = T, name_prefix = "gb")
+
+length(xgb.learners$names)
+
+```
+For the sake of finishing in good time, we selected only 4 configurations, though you may want to also change the learning rate. 
+
+ Begin by adding to the previous library the xgboost learners with diff tuning parameters. Then we fit the CV.SuperLearner with this enlarged library. 
+
+We use V = 3 to save computation time; for a real analysis use V = 10 at least.
+Note: when using xgboost you may get lots of warnings, ignore these.
+
+The code using xgb should take around 30 min. If you want to test the library with gbm learners, or indeed to add more hyperparameters, I suggest you do this after you've learn how to parallelise this (see the extra material provided).
+
+
+```{r}
+my.library.3<-c(xgb.learners$names,ranger.learners$names,my.library.2)
+set.seed(101)
+system.time({
+  cv_sl1 <- CV.SuperLearner(Y = y_train, X = x_train, family = gaussian(), V = 3,
+                        SL.library = my.library.3)
+})
+```
+
+
+Review the results and plot the performance with 95% CIs.
+```{r}
+summary(cv_sl1)
+plot(cv_sl1) + theme_bw()
+
+```
+
+We see that several of the gradient boosting are statistically similar to the Super Learner. In particular those using 100 iterations and the one with the defaults hyperparameter. 
+
+## Weight distribution for SuperLearner 
+
+The weights or coefficients of the SuperLearner are stochastic - they will change as the data changes.
+So we don’t necessarily trust a given set of weights as being the “true” weights, 
+by using CV.SuperLearner we effectively have multiple samples from the distribution of the "true" weights.
+
+The  following function cam extract the weights at each CV.SuperLearner iteration and summarize the distribution of those weights. (credit Chris Kennedy from UC Berkeley Data Lab).
+
+```{r}
+#' Functon to Review meta-weights (coefficients) from a CV.SuperLearner object
+review_weights = function(cv_sl) {
+  meta_weights = coef(cv_sl)
+  means = colMeans(meta_weights)
+  sds = apply(meta_weights, MARGIN = 2,  FUN = sd)
+  mins = apply(meta_weights, MARGIN = 2, FUN = min)
+  maxs = apply(meta_weights, MARGIN = 2, FUN = max)
+  # Combine the stats into a single matrix.
+  sl_stats = cbind("mean(weight)" = means, "sd" = sds, "min" = mins, "max" = maxs)
+  # Sort by decreasing mean weight.
+  sl_stats[order(sl_stats[, 1], decreasing = TRUE), ]
+}
+
+```
+
+
+It is recommended to review the weight distribution for any SuperLearner project
+to better understand which algorithms are chosen for the ensemble.
+```{r}
+print(review_weights(cv_sl1), digits = 3)
+```
+
+
+As you can see, there are many learners in our library that the ensemble never uses. 
+
+# Optional material  : binary outcomes 
+
+If you have time, you can try running a SL with Diabetes as outcome.
+Since it's binary, you need to change the argument family to "binomial".
+You will also need to redefine the design matrix, so it excludes diabetes from the set of predictors. We create training and holdout datasets
+
+```{r}
+y.bin = as.numeric(df$Diabetes)-1
+y.bin_train = y.bin[train_obs]
+y.bin_holdout = y.bin[-train_obs]
+
+X <- df %>%dplyr::select(-one_of("Diabetes") )
+x_train<-X[train_obs, ]
+x_holdout = X[-train_obs, ]
+```
+ 
+ By default, SL uses method NNLS. But for binary prediction, other loss functions are available. We can specify  method = "method.NNloglik" or "method.AUC". 
+AUC can be the best performance metric when our outcome is rare, 
+
+This appears to be the case here (type table(df$Diabetes) to see this), we will use AUC first. You can try other options to see if it makes a difference.
+
+We begin by setting the seed and specifying learners for binary data.
+Then run the binary SL. 
+```{r}
+set.seed(1)
+my.library.bin <-c("SL.glm","SL.glm.interaction", "SL.ranger","SL.gbm")
+
+
+sl.bin <- SuperLearner(Y = y.bin_train, X = x_train, family =  binomial(),
+                       SL.library = my.library.bin,
+                       method = "method.AUC",
+                       cvControl = list(shuffle = F, V=10))
+```
+You can check the time it took by typing
+```{r}
+sl.bin$times$everything
+```
+
+
+Check the SL object
+```{r}
+sl.bin
+```
+All the learners have non-zero weights
+
+We can now use the super learner to predict on new data
+```{r}
+Yhat.sl.bin <- predict(sl.bin, x_holdout, onlySL = TRUE)[[1]]
+```
+
+
+
+We can also use the method argument to change the loss function and the way we select convex combinations.
+Run the following, to obtain a super learner that uses Non-negative Log-likelihood. Check the SL object, and use the resulting SL to predict on new data 
+
+```{r}
+sl.bin.2 <- SuperLearner(Y = y.bin_train, X = x_train, family =  binomial(),
+                         SL.library = my.library.bin,
+                         method = "method.NNloglik",
+                         cvControl = list(shuffle = F, V=10))
+
+sl.bin.2
+#' all the learners have non-zero weights
+
+Yhat.sl.bin.2 <- predict(sl.bin.2, x_holdout, onlySL = TRUE)[[1]]
+
+```
+
