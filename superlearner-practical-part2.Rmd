@@ -187,7 +187,7 @@ Note: when using `xgboost` you may get lots of warnings, ignore these.
 The code using `xgb` should take around 30 min. If you want to test the library with gbm learners, or indeed to add more hyperparameters, I suggest you do this after learning how to run `CV.SuperLearner` in parallel (see the extra material provided).
 
 
-```{r eval = TRUE}
+```{r eval}
 my.library.3 <- c(ranger.learners$names,my.library.2)
 # my.library.3 <- c(xgb.learners$names,ranger.learners$names,my.library.2)
 
