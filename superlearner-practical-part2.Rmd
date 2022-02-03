@@ -2,13 +2,20 @@
 title: "Super Learner for Prediction (Part 2)"
 author: "David Whitney (based on materials by Karla Diaz-Ordaz and Jamie Burns)"
 date: "8 Feb 2022"
-output: html_document
+params:
+  solutions: FALSE
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    number_sections: true
 ---
 
 
 ```{r setup, include=FALSE}
 
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, include = TRUE, results = TRUE)
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, include = TRUE, results = TRUE, eval = params$solutions)
 
  library(MASS)
  library(foreign)
