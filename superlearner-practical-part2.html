@@ -308,7 +308,7 @@ ggsave(&quot;CV_SuperLearner.png&quot;)</code></pre>
 <li><p>“Discrete SL” chooses the best single learner.</p></li>
 <li><p>“Super Learner” takes a weighted average of the learners.</p></li>
 </ul>
-<p>Based on the outer cross-validation, we see that the <code>SuperLearner</code> is statistically tying with the best algorithm (which is <code>gbm</code>, if included). We know that asymptotically, the SL will always perform as good as the best algorithm included in the library due to the oracle property, but it is good to see it empirically in a finite sample.</p>
+<p>Based on the outer cross-validation, we see that the <code>SuperLearner</code> is statistically better than the best algorithm (or tied with <code>gbm</code>, if included). We know that asymptotically, the SL will always perform as good as the best algorithm included in the library due to the oracle property, but it is good to see it empirically in a finite sample.</p>
 </div>
 <div id="tuning-hyperparameters" class="section level1" number="3">
 <h1><span class="header-section-number">3</span> Tuning hyperparameters</h1>
@@ -346,14 +346,18 @@ xgb.learners = create.Learner(&quot;SL.xgboost&quot;,tune = tune, detailed_names
 length(xgb.learners$names)</code></pre>
 <p>For the sake of finishing in good time, we selected only 4 configurations, though you may want to also change the learning rate.</p>
 <p>Begin by adding to the previous library the xgboost learners with diff tuning parameters. Then we fit the <code>CV.SuperLearner</code> with this enlarged library.</p>
-<p>We use <code>V = 3</code> to save computation time; for a real analysis use <code>V = 10</code> at least. Note: when using <code>xgboost</code> you may get lots of warnings, ignore these.</p>
+<p>We use <code>V = 3</code> to save computation time; for a real analysis use <code>V = 10</code> at least.</p>
+<p>Note: when using <code>xgboost</code> you may get lots of warnings, ignore these.</p>
 <p>The code using <code>xgb</code> should take around 30 min. If you want to test the library with gbm learners, or indeed to add more hyperparameters, I suggest you do this after learning how to run <code>CV.SuperLearner</code> in parallel (see the extra material provided).</p>
 <pre class="r"><code>my.library.3 &lt;- c(ranger.learners$names,my.library.2)
 # my.library.3 &lt;- c(xgb.learners$names,ranger.learners$names,my.library.2)
+
 set.seed(101)
 system.time({
-  cv_sl1 &lt;- CV.SuperLearner(Y = y_train, X = x_train, family = gaussian(), V = 3,
-                        SL.library = my.library.3)
+  cv_sl1 &lt;- CV.SuperLearner(Y = y_train, X = x_train, 
+                            family = gaussian(), 
+                            V = 3,
+                            SL.library = my.library.3)
 })</code></pre>
 <p>Review the results and plot the performance with 95% CIs.</p>
 <pre class="r"><code>summary(cv_sl1)

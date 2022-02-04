@@ -144,6 +144,7 @@ class: left
 # Super Learner: a bird's eye .blue[**view**]
 
 ![:scale 105%](SL-schematic.svg)
+.footnote[Adapted from *[Targeted Learning](https://link.springer.com/book/10.1007/978-3-319-65304-4)* (van der Laan & Rose, 2011)]
 
 ---
 class: left
@@ -236,6 +237,7 @@ class: left
 # Super Learner: a bird's eye .blue[**view**]
 
 ![:scale 105%](SL-schematic.svg)
+.footnote[Adapted from *[Targeted Learning](https://link.springer.com/book/10.1007/978-3-319-65304-4)* (van der Laan & Rose, 2011)]
 
 ---
 class: left

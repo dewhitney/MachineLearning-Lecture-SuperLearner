@@ -109,7 +109,7 @@ We see two SuperLearner results: "Super Learner" and "Discrete SL”.
 
  - "Super Learner" takes a weighted average of the learners. 
  
-Based on the outer cross-validation, we see that the `SuperLearner` is statistically tying with the best algorithm (which is `gbm`, if included). We know that asymptotically, the SL will always perform as good as the best algorithm included in the library due to the oracle property, but it is good to see it empirically in a finite sample.
+Based on the outer cross-validation, we see that the `SuperLearner` is statistically better than the best algorithm (or tied with `gbm`, if included). We know that asymptotically, the SL will always perform as good as the best algorithm included in the library due to the oracle property, but it is good to see it empirically in a finite sample.
 
 
 # Tuning hyperparameters
