@@ -2,9 +2,10 @@
 # Super Learner
 ([Standalone page](https://dewhitney.github.io/MachineLearning-Lecture-SuperLearner/))
 
-Presented to LSHTM MSc in Health Data Science students on 8 Feb 2022
+Presented to [LSHTM MSc Health Data Science](https://www.lshtm.ac.uk/study/courses/masters-degrees/health-data-science) students on 8 Feb 2022.
 
-Prepared in 2022 by David Whitney based on Karla DiazOrdaz's 2021 materials
+Prepared in 2022 by David Whitney ([email](David.Whitney@lshtm.ac.uk)) based on Karla DiazOrdaz's 2021 materials.
+
 
 ## Lecture materials
 
