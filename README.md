@@ -1,6 +1,6 @@
 
 # Super Learner
-([Standalone page](https://dewhitney.github.io/MachineLearning-Lecture-SuperLearner/))
+**Standalone page**: [https://tinyurl.com/2a42ajbe](https://tinyurl.com/2a42ajbe)
 
 Presented to [LSHTM MSc Health Data Science](https://www.lshtm.ac.uk/study/courses/masters-degrees/health-data-science) students on 8 Feb 2022.
 
